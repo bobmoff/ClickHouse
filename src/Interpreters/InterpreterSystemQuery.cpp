@@ -634,6 +634,9 @@ BlockIO InterpreterSystemQuery::execute()
         case Type::REFRESH_VIEW:
             getRefreshTask()->run();
             break;
+        case Type::WAIT_VIEW:
+            getRefreshTask()->wait();
+            break;
         case Type::CANCEL_VIEW:
             getRefreshTask()->cancel();
             break;
@@ -1320,6 +1323,7 @@ AccessRightsElements InterpreterSystemQuery::getRequiredAccessForDDLOnCluster() 
             break;
         }
         case Type::REFRESH_VIEW:
+        case Type::WAIT_VIEW:
         case Type::START_VIEW:
         case Type::START_VIEWS:
         case Type::STOP_VIEW:
