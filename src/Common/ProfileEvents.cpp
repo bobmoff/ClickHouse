@@ -617,17 +617,42 @@ The server successfully detected this situation and will download merged part fr
     \
     M(ParallelReplicasUsedCount, "Number of replicas used to execute a query with task-based parallel replicas") \
     \
-    M(S3ConnectionsCreated, "Number of created s3 connections") \
-    M(S3ConnectionsReused, "Number of reused s3 connections") \
-    M(S3ConnectionsReset, "Number of reset s3 connections") \
-    M(S3ConnectionsPreserved, "Number of preserved s3 connections") \
-    M(S3ConnectionsExpired, "Number of expired s3 connections") \
-    M(S3ConnectionsErrors, "Number of cases when creation of a s3 connection failed") \
-    M(S3ConnectionsElapsedMicroseconds, "Total time spend on creating s3 connections") \
+    M(S3StorageConnectionsCreated, "Number of created s3 storage connections") \
+    M(S3StorageConnectionsReused, "Number of reused s3 storage connections") \
+    M(S3StorageConnectionsReset, "Number of reset s3 storage connections") \
+    M(S3StorageConnectionsPreserved, "Number of preserved s3 storage connections") \
+    M(S3StorageConnectionsExpired, "Number of expired s3 storage connections") \
+    M(S3StorageConnectionsErrors, "Number of cases when creation of a s3 storage connection failed") \
+    M(S3StorageConnectionsElapsedMicroseconds, "Total time spend on creating s3 storage connections")                                                                                                                                                                                                                                               \
     \
-    M(S3IPsNew, "Total count of new addresses in dns resolve results") \
-    M(S3IPsExpired, "Total count of expired addresses which is no longer presented in dns resolve results") \
-    M(S3IPsFailScored, "Number of cases when an address is pessimizes due to a connection error ") \
+    M(S3DiskConnectionsCreated, "Number of created s3 disk connections") \
+    M(S3DiskConnectionsReused, "Number of reused s3 disk connections") \
+    M(S3DiskConnectionsReset, "Number of reset s3 disk connections") \
+    M(S3DiskConnectionsPreserved, "Number of preserved s3 disk connections") \
+    M(S3DiskConnectionsExpired, "Number of expired s3 disk connections") \
+    M(S3DiskConnectionsErrors, "Number of cases when creation of a s3 disk connection failed") \
+    M(S3DiskConnectionsElapsedMicroseconds, "Total time spend on creating s3 disk connections") \
+    \
+    M(HttpConnectionsCreated, "Number of created http connections") \
+    M(HttpConnectionsReused, "Number of reused http connections") \
+    M(HttpConnectionsReset, "Number of reset http connections") \
+    M(HttpConnectionsPreserved, "Number of preserved http connections") \
+    M(HttpConnectionsExpired, "Number of expired http connections") \
+    M(HttpConnectionsErrors, "Number of cases when creation of a http connection failed") \
+    M(HttpConnectionsElapsedMicroseconds, "Total time spend on creating http connections") \
+    \
+    M(S3StorageAddressesDiscovered, "Total count of new addresses in dns resolve results for s3 storage hosts") \
+    M(S3StorageAddressesExpired, "Total count of expired addresses which is no longer presented in dns resolve results for s3 storage hosts") \
+    M(S3StorageAddressesFailScored, "Total count of new addresses in dns resolve results for s3 storage hosts") \
+    \
+    M(S3DiskAddressesDiscovered, "Total count of new addresses in dns resolve results for s3 disk hosts") \
+    M(S3DiskAddressesExpired, "Total count of expired addresses which is no longer presented in dns resolve results for s3 disk hosts") \
+    M(S3DiskAddressesFailScored, "Total count of new addresses in dns resolve results for s3 disk hosts") \
+    \
+    M(HttpAddressesDiscovered, "Total count of new addresses in dns resolve results for http hosts") \
+    M(HttpAddressesExpired, "Total count of expired addresses which is no longer presented in dns resolve results for http hosts") \
+    M(HttpAddressesFailScored, "Total count of new addresses in dns resolve results for http hosts") \
+
 
 #ifdef APPLY_FOR_EXTERNAL_EVENTS
     #define APPLY_FOR_EVENTS(M) APPLY_FOR_BUILTIN_EVENTS(M) APPLY_FOR_EXTERNAL_EVENTS(M)

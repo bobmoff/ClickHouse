@@ -1,7 +1,11 @@
 #pragma once
 
+#include <Common/ProfileEvents.h>
+#include <Common/CurrentMetrics.h>
 #include <Common/logger_useful.h>
+
 #include <base/defines.h>
+
 #include <Poco/Net/IPAddress.h>
 
 #include <mutex>
@@ -26,6 +30,22 @@
 
 namespace DB
 {
+
+enum class MetricsType
+{
+    METRICS_FOR_S3_STORAGE,
+    METRICS_FOR_S3_DISK,
+    METRICS_FOR_HTTP,
+};
+
+struct HostResolvePoolMetrics
+{
+    const ProfileEvents::Event discovered = ProfileEvents::end();
+    const ProfileEvents::Event expired = ProfileEvents::end();
+    const ProfileEvents::Event failed = ProfileEvents::end();
+
+    const CurrentMetrics::Metric active_count = CurrentMetrics::end();
+};
 
 constexpr size_t DEFAULT_RESOLVE_TIME_HISTORY_SECONDS = 2*60;
 
@@ -89,12 +109,16 @@ public:
     void update();
     void updateWeights();
 
+    static HostResolvePoolMetrics getMetrics(MetricsType type);
+
 protected:
     explicit HostResolvePool(String host_,
+                             MetricsType metrics_type,
                              Poco::Timespan history_ = Poco::Timespan(DEFAULT_RESOLVE_TIME_HISTORY_SECONDS, 0));
 
     using ResolveFunction = std::function<std::vector<Poco::Net::IPAddress> (const String & host)>;
     HostResolvePool(ResolveFunction && resolve_function_,
+                    MetricsType metrics_type,
                     String host_,
                     Poco::Timespan history_);
 
@@ -157,6 +181,7 @@ protected:
 
     const String host;
     const Poco::Timespan history;
+    const HostResolvePoolMetrics metrics;
 
     // for tests purpose
     const ResolveFunction resolve_function;

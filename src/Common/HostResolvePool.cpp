@@ -9,19 +9,72 @@
 
 namespace ProfileEvents
 {
-    extern const Event S3IPsNew;
-    extern const Event S3IPsExpired;
-    extern const Event S3IPsFailScored;
+    extern const Event S3StorageAddressesDiscovered;
+    extern const Event S3StorageAddressesExpired;
+    extern const Event S3StorageAddressesFailScored;
+
+    extern const Event S3DiskAddressesDiscovered;
+    extern const Event S3DiskAddressesExpired;
+    extern const Event S3DiskAddressesFailScored;
+
+    extern const Event HttpAddressesDiscovered;
+    extern const Event HttpAddressesExpired;
+    extern const Event HttpAddressesFailScored;
 }
 
 namespace CurrentMetrics
 {
-    extern const Metric S3IPsActive;
+    extern const Metric S3StorageAddressesActive;
+    extern const Metric S3DiskAddressesActive;
+    extern const Metric HttpAddressesActive;
 }
 
 namespace DB::ErrorCodes
 {
     extern const int DNS_ERROR;
+}
+
+DB::HostResolvePoolMetrics getMetricsForS3StorageHostResolve()
+{
+    return DB::HostResolvePoolMetrics {
+        .discovered = ProfileEvents::S3StorageAddressesDiscovered,
+        .expired = ProfileEvents::S3StorageAddressesExpired,
+        .failed = ProfileEvents::S3StorageAddressesFailScored,
+        .active_count = CurrentMetrics::S3StorageAddressesActive,
+    };
+}
+
+DB::HostResolvePoolMetrics getMetricsForS3DiskHostResolve()
+{
+    return DB::HostResolvePoolMetrics {
+        .discovered = ProfileEvents::S3DiskAddressesDiscovered,
+        .expired = ProfileEvents::S3DiskAddressesExpired,
+        .failed = ProfileEvents::S3DiskAddressesFailScored,
+        .active_count = CurrentMetrics::S3DiskAddressesActive,
+    };
+}
+
+DB::HostResolvePoolMetrics getMetricsForHttpHostResolve()
+{
+    return DB::HostResolvePoolMetrics {
+        .discovered = ProfileEvents::HttpAddressesDiscovered,
+        .expired = ProfileEvents::HttpAddressesExpired,
+        .failed = ProfileEvents::HttpAddressesFailScored,
+        .active_count = CurrentMetrics::HttpAddressesActive,
+    };
+}
+
+DB::HostResolvePoolMetrics DB::HostResolvePool::getMetrics(MetricsType type)
+{
+    switch (type)
+    {
+        case MetricsType::METRICS_FOR_S3_STORAGE:
+            return getMetricsForS3StorageHostResolve();
+        case MetricsType::METRICS_FOR_S3_DISK:
+            return getMetricsForS3DiskHostResolve();
+        case MetricsType::METRICS_FOR_HTTP:
+            return getMetricsForHttpHostResolve();
+    }
 }
 
 DB::HostResolvePool::WeakPtr DB::HostResolvePool::getWeakFromThis()
@@ -31,9 +84,11 @@ DB::HostResolvePool::WeakPtr DB::HostResolvePool::getWeakFromThis()
 
 DB::HostResolvePool::HostResolvePool(
     String host_,
+    MetricsType metrics_type,
     Poco::Timespan history_)
     : host(std::move(host_))
     , history(history_)
+    , metrics(getMetrics(metrics_type))
     , resolve_function([] (const String & host_to_resolve)
     {
       return DB::DNSResolver::instance().resolveHostAll(host_to_resolve);
@@ -44,10 +99,12 @@ DB::HostResolvePool::HostResolvePool(
 
 DB::HostResolvePool::HostResolvePool(
     ResolveFunction && resolve_function_,
+    MetricsType metrics_type,
     String host_,
     Poco::Timespan history_)
     : host(std::move(host_))
     , history(history_)
+    , metrics(getMetrics(metrics_type))
     , resolve_function(std::move(resolve_function_))
 {
     update();
@@ -56,7 +113,7 @@ DB::HostResolvePool::HostResolvePool(
 DB::HostResolvePool::~HostResolvePool()
 {
     std::lock_guard lock(mutex);
-    CurrentMetrics::sub(CurrentMetrics::S3IPsActive, records.size());
+    CurrentMetrics::sub(metrics.active_count, records.size());
 }
 
 void DB::HostResolvePool::Entry::setFail()
@@ -93,10 +150,10 @@ void DB::HostResolvePool::update()
 
     /// upd stats outsize of critical section
     SCOPE_EXIT({
-        CurrentMetrics::add(CurrentMetrics::S3IPsActive, stats.added);
-        CurrentMetrics::sub(CurrentMetrics::S3IPsActive, stats.expired);
-        ProfileEvents::increment(ProfileEvents::S3IPsNew, stats.added);
-        ProfileEvents::increment(ProfileEvents::S3IPsExpired, stats.expired);
+        CurrentMetrics::add(metrics.active_count, stats.added);
+        CurrentMetrics::sub(metrics.active_count, stats.expired);
+        ProfileEvents::increment(metrics.discovered, stats.added);
+        ProfileEvents::increment(metrics.expired, stats.expired);
     });
 
     Poco::Timestamp now;
@@ -165,7 +222,7 @@ void DB::HostResolvePool::setFail(const Poco::Net::IPAddress & address)
         it->fail_time = now;
     }
 
-    ProfileEvents::increment(ProfileEvents::S3IPsFailScored);
+    ProfileEvents::increment(metrics.failed);
     update();
 }
 

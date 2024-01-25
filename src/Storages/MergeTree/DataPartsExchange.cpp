@@ -526,14 +526,14 @@ std::pair<MergeTreeData::MutableDataPartPtr, scope_guard> Fetcher::fetchSelected
         creds.setPassword(password);
     }
 
-    std::unique_ptr<PooledReadWriteBufferFromHTTP> in = std::make_unique<PooledReadWriteBufferFromHTTP>(
+    auto in = std::make_unique<ReadWriteBufferFromHTTP>(
         uri,
         Poco::Net::HTTPRequest::HTTP_POST,
         nullptr,
+        timeouts,
         creds,
-        DBMS_DEFAULT_BUFFER_SIZE,
         0, /* no redirects */
-        context->getCommonFetchesSessionFactory());
+        DBMS_DEFAULT_BUFFER_SIZE);
 
     int server_protocol_version = parse<int>(in->getResponseCookie("server_protocol_version", "0"));
     String remote_fs_metadata = parse<String>(in->getResponseCookie("remote_fs_metadata", ""));
@@ -743,7 +743,7 @@ MergeTreeData::MutableDataPartPtr Fetcher::downloadPartToMemory(
     const UUID & part_uuid,
     const StorageMetadataPtr & metadata_snapshot,
     ContextPtr context,
-    PooledReadWriteBufferFromHTTP & in,
+    ReadWriteBufferFromHTTP & in,
     size_t projections,
     bool is_projection,
     ThrottlerPtr throttler)
@@ -799,7 +799,7 @@ MergeTreeData::MutableDataPartPtr Fetcher::downloadPartToMemory(
 void Fetcher::downloadBaseOrProjectionPartToDisk(
     const String & replica_path,
     const MutableDataPartStoragePtr & data_part_storage,
-    PooledReadWriteBufferFromHTTP & in,
+    ReadWriteBufferFromHTTP & in,
     OutputBufferGetter output_buffer_getter,
     MergeTreeData::DataPart::Checksums & checksums,
     ThrottlerPtr throttler,
@@ -872,7 +872,7 @@ MergeTreeData::MutableDataPartPtr Fetcher::downloadPartToDisk(
     const String & tmp_prefix,
     DiskPtr disk,
     bool to_remote_disk,
-    PooledReadWriteBufferFromHTTP & in,
+    ReadWriteBufferFromHTTP & in,
     OutputBufferGetter output_buffer_getter,
     size_t projections,
     ThrottlerPtr throttler,

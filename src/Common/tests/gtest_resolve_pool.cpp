@@ -10,7 +10,7 @@ public:
     using ResolveFunction = DB::HostResolvePool::ResolveFunction;
 
     ResolvePoolMock(String host_, Poco::Timespan history_, ResolveFunction && func)
-    : DB::HostResolvePool(std::move(func), std::move(host_), history_)
+    : DB::HostResolvePool(std::move(func), DB::MetricsType::METRICS_FOR_HTTP, std::move(host_), history_)
     {
     }
 };
@@ -51,20 +51,9 @@ protected:
         return std::make_shared<ResolvePoolMock>("some_host", Poco::Timespan(history_ms * 1000), std::move(resolve_func));
     }
 
+    DB::HostResolvePoolMetrics metrics = DB::HostResolvePool::getMetrics(DB::MetricsType::METRICS_FOR_HTTP);
     std::set<String> addresses;
 };
-
-namespace ProfileEvents
-{
-    extern const Event S3IPsNew;
-    extern const Event S3IPsExpired;
-    extern const Event S3IPsFailScored;
-}
-
-namespace CurrentMetrics
-{
-    extern const Metric S3IPsActive;
-}
 
 TEST_F(ResolvePoolTest, CanResolve)
 {
@@ -73,8 +62,8 @@ TEST_F(ResolvePoolTest, CanResolve)
 
     ASSERT_TRUE(addresses.contains(*address));
 
-    ASSERT_EQ(addresses.size(), DB::CurrentThread::getProfileEvents()[ProfileEvents::S3IPsNew]);
-    ASSERT_EQ(addresses.size(), CurrentMetrics::get(CurrentMetrics::S3IPsActive));
+    ASSERT_EQ(addresses.size(), DB::CurrentThread::getProfileEvents()[metrics.discovered]);
+    ASSERT_EQ(addresses.size(), CurrentMetrics::get(metrics.active_count));
 }
 
 TEST_F(ResolvePoolTest, CanResolveAll)
@@ -88,7 +77,7 @@ TEST_F(ResolvePoolTest, CanResolveAll)
         results.insert(*next_addr);
     }
 
-    ASSERT_EQ(addresses.size(), DB::CurrentThread::getProfileEvents()[ProfileEvents::S3IPsNew]);
+    ASSERT_EQ(addresses.size(), DB::CurrentThread::getProfileEvents()[metrics.discovered]);
 }
 
 size_t getSum(std::map<String, size_t> container)
@@ -162,15 +151,15 @@ TEST_F(ResolvePoolTest, CanMerge)
 
     ASSERT_TRUE(addresses.contains(*address));
 
-    ASSERT_EQ(addresses.size(), DB::CurrentThread::getProfileEvents()[ProfileEvents::S3IPsNew]);
+    ASSERT_EQ(addresses.size(), DB::CurrentThread::getProfileEvents()[metrics.discovered]);
 
     auto old_addresses = addresses;
     addresses = std::set<String>{"127.0.0.4", "127.0.0.5"};
 
 
     pool->update();
-    ASSERT_EQ(addresses.size() + old_addresses.size(), DB::CurrentThread::getProfileEvents()[ProfileEvents::S3IPsNew]);
-    ASSERT_EQ(addresses.size() + old_addresses.size(), CurrentMetrics::get(CurrentMetrics::S3IPsActive));
+    ASSERT_EQ(addresses.size() + old_addresses.size(), DB::CurrentThread::getProfileEvents()[metrics.discovered]);
+    ASSERT_EQ(addresses.size() + old_addresses.size(), CurrentMetrics::get(metrics.active_count));
 
     std::set<String> results;
     while (results.size() != addresses.size() + old_addresses.size())
@@ -232,7 +221,7 @@ TEST_F(ResolvePoolTest, CanFail)
     auto failed_addr = pool->get();
     failed_addr.setFail();
 
-    ASSERT_EQ(1, DB::CurrentThread::getProfileEvents()[ProfileEvents::S3IPsFailScored]);
+    ASSERT_EQ(1, DB::CurrentThread::getProfileEvents()[metrics.failed]);
 
     for (size_t i = 0; i < 1000; ++i)
     {
@@ -277,6 +266,6 @@ TEST_F(ResolvePoolTest, CanExpire)
         ASSERT_NE(*next_addr, *expired_addr);
     }
 
-    ASSERT_EQ(addresses.size() + 1, DB::CurrentThread::getProfileEvents()[ProfileEvents::S3IPsNew]);
-    ASSERT_EQ(1, DB::CurrentThread::getProfileEvents()[ProfileEvents::S3IPsExpired]);
+    ASSERT_EQ(addresses.size() + 1, DB::CurrentThread::getProfileEvents()[metrics.discovered]);
+    ASSERT_EQ(1, DB::CurrentThread::getProfileEvents()[metrics.expired]);
 }

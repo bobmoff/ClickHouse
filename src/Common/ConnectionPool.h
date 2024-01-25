@@ -1,5 +1,9 @@
 #pragma once
 
+#include <IO/ConnectionTimeouts.h>
+
+#include <Common/ProfileEvents.h>
+#include <Common/CurrentMetrics.h>
 #include <Common/ProxyConfiguration.h>
 #include <Common/HostResolvePool.h>
 #include <Common/logger_useful.h>
@@ -12,129 +16,94 @@
 #include <mutex>
 #include <memory>
 
-// That class manage connections to the endpoint
-// Features:
-// - it uses HostResolvePool for address selecting. See Common/HostResolvePool.h for more info.
-// - it minimizes number of `Session::connect()`/`Session::reconnect()` calls
-//   - stores only connected and ready to use sessions
-//   - connection could be reused even when limits are reached
-// - soft limit
-// - warn limit
-// - `Session::reconnect()` uses that pool
-// - comprehensive sensors
-
-
-// connection live stages
-// CREATED -> STORED
-// CREATED -> RESET
-// STORED -> EXPIRED
-// STORED -> REUSED
-// REUSED -> RESET
-// REUSED -> STORED
-
 namespace DB
 {
 
-template <class Session>
-class ConnectionPool : public std::enable_shared_from_this<ConnectionPool<Session>>
+struct ConnectionPoolMetrics
 {
-private:
-    using WeakPtr = std::weak_ptr<ConnectionPool<Session>>;
+    const ProfileEvents::Event created = ProfileEvents::end();
+    const ProfileEvents::Event reused = ProfileEvents::end();
+    const ProfileEvents::Event reset = ProfileEvents::end();
+    const ProfileEvents::Event preserved = ProfileEvents::end();
+    const ProfileEvents::Event expired = ProfileEvents::end();
+    const ProfileEvents::Event errors = ProfileEvents::end();
+    const ProfileEvents::Event elapsed_microseconds = ProfileEvents::end();
 
-public:
-    using Ptr = std::shared_ptr<ConnectionPool<Session>>;
-
-    template<class... Args>
-    static Ptr create(Args&&... args)
-    {
-        struct make_shared_enabler : public ConnectionPool<Session>
-        {
-            make_shared_enabler(Args&&... args) : ConnectionPool<Session>(std::forward<Args>(args)...) {}
-        };
-        return std::make_shared<make_shared_enabler>(std::forward<Args>(args)...);
-    }
-
-    virtual ~ConnectionPool();
-
-    ConnectionPool(const ConnectionPool &) = delete;
-    ConnectionPool & operator=(const ConnectionPool &) = delete;
-
-    class PooledConnection : public std::enable_shared_from_this<PooledConnection>, public Session
-    {
-    public:
-        using Ptr = std::shared_ptr<PooledConnection>;
-
-        void reconnect() override;
-        ~PooledConnection() override;
-
-    private:
-        friend class ConnectionPool<Session>;
-
-        template<class... Args>
-        PooledConnection(ConnectionPool<Session> & pool_, Args&&... args);
-
-        template<class... Args>
-        static Ptr create(Args&&... args);
-
-        void doConnect() { Session::reconnect(); }
-
-        void jumpToOtherConnection(PooledConnection & connection);
-
-        typedef Session Base;
-
-        ConnectionPool::WeakPtr pool;
-    };
-
-    PooledConnection::Ptr getConnection();
-
-private:
-    ConnectionPool(String host_, UInt16 port_, bool https_,
-                DB::ProxyConfiguration proxy_configuration_,
-                size_t soft_limit_ = 1000,
-                size_t warn_limit_ = 20000);
-
-    friend class PooledConnection;
-    WeakPtr getWeakFromThis();
-
-    const std::string host;
-    const UInt16 port;
-    const bool https;
-    const DB::ProxyConfiguration proxy_configuration;
-    const size_t soft_limit;
-    const size_t warn_limit;
-
-    Poco::Logger * log = &Poco::Logger::get("ConnectionPool");
-
-    struct CompareByLastRequest
-    {
-        static bool operator() (const PooledConnection::Ptr & l, const PooledConnection::Ptr & r)
-        {
-            return l->getLastRequest() > r->getLastRequest();
-        }
-    };
-
-    using ConnectionsMaxHeap
-        = std::priority_queue<typename PooledConnection::Ptr,
-                              std::vector<typename PooledConnection::Ptr>, CompareByLastRequest>;
-
-    HostResolvePool::Ptr resolve_pool;
-
-    std::mutex mutex;
-    ConnectionsMaxHeap stored_connections TSA_GUARDED_BY(mutex);
-    std::atomic<size_t> active_connections = 0;
-    std::atomic<size_t> mute_warn_until = 0;
-
-    bool isExpired(Poco::Timestamp & now, PooledConnection::Ptr connection) TSA_REQUIRES(mutex);
-
-    void wipeExpired();
-
-    PooledConnection::Ptr prepareNewConnection();
-
-    void storeDestroyingConnection(PooledConnection & connection);
+    const CurrentMetrics::Metric stored_count = CurrentMetrics::end();
+    const CurrentMetrics::Metric active_count = CurrentMetrics::end();
 };
 
-bool hasReuseTag(Poco::Net::HTTPSession & session);
-void resetReuseTag(Poco::Net::HTTPSession & session);
-void setReuseTag(Poco::Net::HTTPSession & session);
+struct ConnectionPoolLimits
+{
+    const size_t soft_limit = 1000;
+    const size_t warning_limit = 20000;
+};
+
+class IEndpointConnectionPool
+{
+public:
+    using Ptr =  std::shared_ptr<IEndpointConnectionPool>;
+    using Connection = Poco::Net::HTTPClientSession;
+    using ConnectionPtr = std::shared_ptr<Poco::Net::HTTPClientSession>;
+
+    IEndpointConnectionPool(const IEndpointConnectionPool &) = delete;
+    IEndpointConnectionPool & operator=(const IEndpointConnectionPool &) = delete;
+
+    virtual ConnectionPtr getConnection(const ConnectionTimeouts & timeouts) = 0;
+    virtual ~IEndpointConnectionPool() = default;
+
+    static ConnectionPoolMetrics getMetrics(DB::MetricsType type);
+
+protected:
+    IEndpointConnectionPool() = default;
+};
+
+
+class ConnectionPools
+{
+public:
+    struct EndpointPoolKey
+    {
+        String target_host;
+        UInt16 target_port;
+        bool is_target_https;
+        ProxyConfiguration proxy_config;
+        bool operator ==(const EndpointPoolKey & rhs) const;
+    };
+
+private:
+    struct Hasher
+    {
+        size_t operator()(const EndpointPoolKey & k) const;
+    };
+
+    std::mutex mutex;
+    std::unordered_map<EndpointPoolKey, IEndpointConnectionPool::Ptr, Hasher> endpoints_pool;
+
+protected:
+    ConnectionPools() = default;
+
+public:
+    ConnectionPools(const ConnectionPools &) = delete;
+    ConnectionPools & operator=(const ConnectionPools &) = delete;
+
+    static ConnectionPools & instance()
+    {
+        static ConnectionPools instance;
+        return instance;
+    }
+
+    bool declarePoolForS3Storage(const Poco::URI & uri, ProxyConfiguration proxy_configuration, ConnectionPoolLimits limits);
+    bool declarePoolForS3Disk(const Poco::URI & uri, ProxyConfiguration proxy_configuration, ConnectionPoolLimits limits);
+    bool declarePoolForHttp(const Poco::URI & uri, ProxyConfiguration proxy_configuration, ConnectionPoolLimits limits);
+    bool isPoolDeclared(const Poco::URI & uri, ProxyConfiguration proxy_configuration);
+    IEndpointConnectionPool::Ptr getPool(const Poco::URI & uri, ProxyConfiguration proxy_configuration);
+
+    void clear();
+
+protected:
+    static bool useSecureConnection(const Poco::URI & uri, const ProxyConfiguration & proxy_configuration);
+    static std::tuple<std::string, UInt16, bool> getHostPortSecure(const Poco::URI & uri, const ProxyConfiguration & proxy_configuration);
+};
 
 }

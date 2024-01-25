@@ -36,10 +36,10 @@ namespace ProfileEvents
 
 namespace
 {
-DB::PooledHTTPSessionPtr getSession(Aws::S3::Model::GetObjectResult & read_result)
+DB::HTTPSessionPtr getSession(Aws::S3::Model::GetObjectResult & read_result)
 {
-    if (auto * session_aware_stream = dynamic_cast<DB::S3::SessionAwareIOStream<DB::PooledHTTPSessionPtr> *>(&read_result.GetBody()))
-        return static_cast<DB::PooledHTTPSessionPtr &>(session_aware_stream->getSession());
+    if (auto * session_aware_stream = dynamic_cast<DB::S3::SessionAwareIOStream<DB::HTTPSessionPtr> *>(&read_result.GetBody()))
+        return static_cast<DB::HTTPSessionPtr &>(session_aware_stream->getSession());
 
     if (dynamic_cast<DB::S3::SessionAwareIOStream<DB::HTTPSessionPtr> *>(&read_result.GetBody()))
         return {};
@@ -53,7 +53,7 @@ DB::PooledHTTPSessionPtr getSession(Aws::S3::Model::GetObjectResult & read_resul
 
 void resetSession(Aws::S3::Model::GetObjectResult & read_result)
 {
-    if (auto session = getSession(read_result); !session.isNull())
+    if (auto session = getSession(read_result); session != nullptr)
     {
         auto & http_session = static_cast<Poco::Net::HTTPClientSession &>(*session);
         http_session.reset();
@@ -72,7 +72,7 @@ void resetSessionIfNeeded(bool read_all_range_successfully, std::optional<Aws::S
         resetSession(*read_result);
         ProfileEvents::increment(ProfileEvents::ReadBufferFromS3ResetSessions);
     }
-    else if (auto session = getSession(*read_result); !session.isNull())
+    else if (auto session = getSession(*read_result); session != nullptr)
     {
         if (!session->getProxyHost().empty())
         {
@@ -82,7 +82,7 @@ void resetSessionIfNeeded(bool read_all_range_successfully, std::optional<Aws::S
         }
         else
         {
-            DB::markSessionForReuse(session);
+            //DB::markSessionForReuse(session);
             ProfileEvents::increment(ProfileEvents::ReadBufferFromS3PreservedSessions);
         }
     }
@@ -249,9 +249,9 @@ size_t ReadBufferFromS3::readBigAt(char * to, size_t n, size_t range_begin, cons
             if (session_is_reusable)
             {
                 auto session = getSession(*result);
-                if (!session.isNull())
+                if (session != nullptr)
                 {
-                    DB::markSessionForReuse(session);
+                    //DB::markSessionForReuse(*session);
                     ProfileEvents::increment(ProfileEvents::ReadBufferFromS3PreservedSessions);
                 }
                 else

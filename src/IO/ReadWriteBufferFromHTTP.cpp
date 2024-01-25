@@ -449,7 +449,7 @@ bool ReadWriteBufferFromHTTPBase<UpdatableSessionPtr>::nextImpl()
         (file_info && file_info->file_size && getOffset() >= file_info->file_size.value()))
     {
         /// Response was fully read.
-        markSessionForReuse(session->getSession());
+        /// setReuseTag(*session->getSession());
         ProfileEvents::increment(ProfileEvents::ReadWriteBufferFromHTTPPreservedSessions);
         return false;
     }
@@ -576,7 +576,7 @@ bool ReadWriteBufferFromHTTPBase<UpdatableSessionPtr>::nextImpl()
     if (!result)
     {
         /// Eof is reached, i.e response was fully read.
-        markSessionForReuse(session->getSession());
+        //markSessionForReuse(session->getSession());
         ProfileEvents::increment(ProfileEvents::ReadWriteBufferFromHTTPPreservedSessions);
         return false;
     }
@@ -633,7 +633,7 @@ size_t ReadWriteBufferFromHTTPBase<UpdatableSessionPtr>::readBigAt(char * to, si
             {
                 result_istr->ignore(UINT64_MAX);
                 /// Response was fully read.
-                markSessionForReuse(*sess);
+                //markSessionForReuse(*sess);
                 ProfileEvents::increment(ProfileEvents::ReadWriteBufferFromHTTPPreservedSessions);
             }
         }
@@ -910,37 +910,7 @@ ReadWriteBufferFromHTTP::ReadWriteBufferFromHTTP(
         proxy_config_) {}
 
 
-PooledSessionFactory::PooledSessionFactory(
-    const ConnectionTimeouts & timeouts_, size_t per_endpoint_pool_size_)
-    : timeouts(timeouts_)
-    , per_endpoint_pool_size(per_endpoint_pool_size_) {}
-
-PooledSessionFactory::SessionType PooledSessionFactory::buildNewSession(const Poco::URI & uri)
-{
-    return makePooledHTTPSession(uri, timeouts, per_endpoint_pool_size);
-}
-
-
-PooledReadWriteBufferFromHTTP::PooledReadWriteBufferFromHTTP(
-    Poco::URI uri_,
-    const std::string & method_,
-    OutStreamCallback out_stream_callback_,
-    const Poco::Net::HTTPBasicCredentials & credentials_,
-    size_t buffer_size_,
-    const UInt64 max_redirects,
-    PooledSessionFactoryPtr session_factory)
-    : Parent(
-        std::make_shared<SessionType>(uri_, max_redirects, session_factory),
-        uri_,
-        credentials_,
-        method_,
-        out_stream_callback_,
-        buffer_size_) {}
-
-
 template class UpdatableSession<SessionFactory>;
-template class UpdatableSession<PooledSessionFactory>;
 template class detail::ReadWriteBufferFromHTTPBase<std::shared_ptr<UpdatableSession<SessionFactory>>>;
-template class detail::ReadWriteBufferFromHTTPBase<std::shared_ptr<UpdatableSession<PooledSessionFactory>>>;
 
 }

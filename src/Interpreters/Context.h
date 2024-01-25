@@ -204,8 +204,8 @@ using TemporaryDataOnDiskScopePtr = std::shared_ptr<TemporaryDataOnDiskScope>;
 class PreparedSetsCache;
 using PreparedSetsCachePtr = std::shared_ptr<PreparedSetsCache>;
 
-class PooledSessionFactory;
-using PooledSessionFactoryPtr = std::shared_ptr<PooledSessionFactory>;
+class SessionFactory;
+using SessionFactoryPtr = std::shared_ptr<SessionFactory>;
 
 class SessionTracker;
 
@@ -1211,7 +1211,6 @@ public:
     OrdinaryBackgroundExecutorPtr getMovesExecutor() const;
     OrdinaryBackgroundExecutorPtr getFetchesExecutor() const;
     OrdinaryBackgroundExecutorPtr getCommonExecutor() const;
-    PooledSessionFactoryPtr getCommonFetchesSessionFactory() const;
 
     IAsynchronousReader & getThreadPoolReader(FilesystemReaderType type) const;
 #if USE_LIBURING

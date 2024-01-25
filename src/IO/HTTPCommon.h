@@ -7,7 +7,7 @@
 #include <Poco/Net/HTTPRequest.h>
 #include <Poco/Net/HTTPResponse.h>
 #include <Poco/URI.h>
-#include <Common/PoolBase.h>
+#include <Common/ConnectionPool.h>
 #include <Common/ProxyConfiguration.h>
 #include <Poco/URIStreamFactory.h>
 
@@ -52,26 +52,7 @@ private:
     const char * className() const noexcept override { return "DB::HTTPException"; }
 };
 
-using PooledHTTPSessionPtr = PoolBase<Poco::Net::HTTPClientSession>::Entry; // SingleEndpointHTTPSessionPool::Entry
 using HTTPSessionPtr = std::shared_ptr<Poco::Net::HTTPClientSession>;
-
-/// If a session have this tag attached, it will be reused without calling `reset()` on it.
-/// All pooled sessions don't have this tag attached after being taken from a pool.
-/// If the request and the response were fully written/read, the client code should add this tag
-/// explicitly by calling `markSessionForReuse()`.
-///
-/// Note that HTTP response may contain extra bytes after the last byte of the payload. Specifically,
-/// when chunked encoding is used, there's an empty chunk at the end. Those extra bytes must also be
-/// read before the session can be reused. So we usually put an `istr->ignore(INT64_MAX)` call
-/// before `markSessionForReuse()`.
-struct HTTPSessionReuseTag
-{
-};
-
-void markSessionForReuse(Poco::Net::HTTPSession & session);
-void markSessionForReuse(HTTPSessionPtr session);
-void markSessionForReuse(PooledHTTPSessionPtr session);
-
 
 void setResponseDefaultHeaders(HTTPServerResponse & response, size_t keep_alive_timeout);
 
@@ -82,7 +63,7 @@ HTTPSessionPtr makeHTTPSession(
     ProxyConfiguration proxy_config = {}
 );
 
-/// As previous method creates session, but takes it from pool, without and with proxy uri.
+/// As previous method creates session, but takes it from connection pool, without and with proxy uri.
 ///
 /// The max_connections_per_endpoint parameter makes it look like the pool size can be different for
 /// different requests (whatever that means), but actually we just assign the endpoint's connection
@@ -94,12 +75,7 @@ HTTPSessionPtr makeHTTPSession(
 ///  * Enable pooling by default everywhere. In particular StorageURL and StorageS3.
 ///    (Enabling it for StorageURL is scary without the previous item - the user may query lots of
 ///     different endpoints. So currently pooling is mainly used for S3.)
-PooledHTTPSessionPtr makePooledHTTPSession(
-    const Poco::URI & uri,
-    const ConnectionTimeouts & timeouts,
-    size_t per_endpoint_pool_size,
-    bool wait_on_pool_size_limit = true,
-    ProxyConfiguration proxy_config = {});
+
 
 bool isRedirect(Poco::Net::HTTPResponse::HTTPStatus status);
 
@@ -114,5 +90,4 @@ std::istream * receiveResponse(
 void assertResponseIsOk(
     const Poco::Net::HTTPRequest & request, Poco::Net::HTTPResponse & response, std::istream & istr, bool allow_redirects = false);
 
-void setTimeouts(Poco::Net::HTTPClientSession & session, const ConnectionTimeouts & timeouts);
 }

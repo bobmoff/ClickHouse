@@ -49,6 +49,8 @@ struct ProxyConfiguration
     uint16_t port;
     bool tunneling;
     Protocol original_request_protocol;
+
+    bool isEmpty() const { return host.size() == 0; }
 };
 
 }

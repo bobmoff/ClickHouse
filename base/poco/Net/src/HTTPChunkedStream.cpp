@@ -53,6 +53,8 @@ void HTTPChunkedStreamBuf::close()
 	{
 		sync();
 		_session.write("0\r\n\r\n", 5);
+
+        _chunk = std::char_traits<char>::eof();
 	}
 }
 
