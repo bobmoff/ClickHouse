@@ -394,14 +394,18 @@ def _configure_jobs(
         num_batches: int = job_config.num_batches
         batches_to_do: List[int] = []
 
+        is_for_to_do = False
         if job_config.run_by_label:
+            for batch in range(num_batches):  # type: ignore
+                batches_to_do.append(batch)
             # this job controlled by label, add to todo if it's labe is set in pr
             if job_config.run_by_label in pr_labels:
-                for batch in range(num_batches):  # type: ignore
-                    batches_to_do.append(batch)
+                is_for_to_do = True
         elif job_config.run_always:
             # always add to todo
-            batches_to_do.append(batch)
+            for batch in range(num_batches):  # type: ignore
+                batches_to_do.append(batch)
+            is_for_to_do = True
         else:
             # this job controlled by digest, add to todo if it's not successfully done before
             for batch in range(num_batches):  # type: ignore
@@ -410,15 +414,17 @@ def _configure_jobs(
                     rebuild_all_binaries and CI_CONFIG.is_build_job(job)
                 ):
                     batches_to_do.append(batch)
+                    is_for_to_do = True
 
-        if batches_to_do:
+        if is_for_to_do:
             jobs_to_do.append(job)
-            jobs_params[job] = {
-                "batches": batches_to_do,
-                "num_batches": num_batches,
-            }
-        else:
+        elif not job_config.run_by_label:
+            # treat job as being skipped only if it's controlled by digest
             jobs_to_skip.append(job)
+        jobs_params[job] = {
+            "batches": batches_to_do,
+            "num_batches": num_batches,
+        }
 
     ## c. check CI controlling labels commit messages
     if pr_labels:
@@ -434,7 +440,9 @@ def _configure_jobs(
             print(
                 f"    :   following jobs will be executed: [{jobs_requested_by_label}]"
             )
-            jobs_to_do = [job for job in jobs_requested_by_label if job in jobs_to_do]
+            jobs_to_do = [
+                job for job in jobs_requested_by_label if job not in jobs_to_skip
+            ]
 
     if commit_tokens:
         jobs_to_do_requested = []  # type: List[str]
@@ -475,7 +483,7 @@ def _configure_jobs(
                 f"NOTE: Only specific job(s) were requested by commit message tokens: [{jobs_to_do_requested}]"
             )
             jobs_to_do = list(
-                set(job for job in jobs_to_do_requested if job in jobs_to_do)
+                set(job for job in jobs_to_do_requested if job not in jobs_to_skip)
             )
 
     return {

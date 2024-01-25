@@ -62,7 +62,6 @@
         "dependent": []
     },
     "docker/test/integration/runner": {
-        "only_amd64": true,
         "name": "clickhouse/integration-tests-runner",
         "dependent": []
     },
@@ -111,7 +110,6 @@
         "dependent": []
     },
     "docker/test/integration/kerberos_kdc": {
-        "only_amd64": true,
         "name": "clickhouse/kerberos-kdc",
         "dependent": []
     },
