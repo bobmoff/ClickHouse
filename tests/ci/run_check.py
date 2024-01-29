@@ -18,7 +18,7 @@ from commit_status_helper import (
 )
 from env_helper import GITHUB_REPOSITORY, GITHUB_SERVER_URL
 from get_robot_token import get_best_robot_token
-from pr_info import FORCE_TESTS_LABEL, PRInfo
+from pr_info import PRInfo
 from lambda_shared_package.lambda_shared.pr import (
     CATEGORY_TO_LABEL,
     TRUSTED_CONTRIBUTORS,
@@ -63,9 +63,6 @@ def pr_is_by_trusted_user(pr_user_login, pr_user_orgs):
 def should_run_ci_for_pr(pr_info: PRInfo) -> Tuple[bool, str]:
     # Consider the labels and whether the user is trusted.
     print("Got labels", pr_info.labels)
-    if FORCE_TESTS_LABEL in pr_info.labels:
-        print(f"Label '{FORCE_TESTS_LABEL}' set, forcing remaining checks")
-        return True, f"Labeled '{FORCE_TESTS_LABEL}'"
 
     if OK_SKIP_LABELS.intersection(pr_info.labels):
         return True, "Don't try new checks for release/backports/cherry-picks"

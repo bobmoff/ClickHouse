@@ -130,7 +130,7 @@ class JobNames(metaclass=WithIter):
     BUILD_CHECK_SPECIAL = "ClickHouse special build check"
 
     DOCS_CHECK = "Docs check"
-    BUGFIX_VALIDATE = "tests bugfix validate check"
+    BUGFIX_VALIDATE = "Bugfix validation"
 
 
 # dynamically update JobName with Build jobs
@@ -258,7 +258,6 @@ class BuildReportConfig:
 @dataclass
 class TestConfig:
     required_build: str
-    force_tests: bool = False
     job_config: JobConfig = field(default_factory=JobConfig)
 
 
@@ -830,7 +829,9 @@ CI_CONFIG = CiConfig(
         JobNames.BUGFIX_VALIDATE: TestConfig(
             "",
             # we run this check by label - no digest required
-            job_config=JobConfig(run_by_label="pr-bugfix"),
+            job_config=JobConfig(
+                run_by_label="pr-bugfix", run_command="bugfix_validate_check.py"
+            ),
         ),
     },
     test_configs={

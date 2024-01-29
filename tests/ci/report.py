@@ -290,9 +290,10 @@ class JobReport:
         return JOB_REPORT_FILE.is_file()
 
     @classmethod
-    def load(cls):  # type: ignore
+    def load(cls, from_file=None):  # type: ignore
         res = {}
-        with open(JOB_REPORT_FILE, "r") as json_file:
+        from_file = from_file or JOB_REPORT_FILE
+        with open(from_file, "r") as json_file:
             res = json.load(json_file)
             # Deserialize the nested lists of TestResult
             test_results_data = res.get("test_results", [])
@@ -305,13 +306,14 @@ class JobReport:
         if JOB_REPORT_FILE.exists():
             JOB_REPORT_FILE.unlink()
 
-    def dump(self):
+    def dump(self, to_file=None):
         def path_converter(obj):
             if isinstance(obj, Path):
                 return str(obj)
             raise TypeError("Type not serializable")
 
-        with open(JOB_REPORT_FILE, "w") as json_file:
+        to_file = to_file or JOB_REPORT_FILE
+        with open(to_file, "w") as json_file:
             json.dump(asdict(self), json_file, default=path_converter, indent=2)
 
 

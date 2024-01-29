@@ -13,12 +13,9 @@ from build_download_helper import download_all_deb_packages
 from clickhouse_helper import (
     CiLogsCredentials,
 )
-from commit_status_helper import (
-    override_status,
-)
 from docker_images_helper import get_docker_image, pull_image, DockerImage
 from env_helper import TEMP_PATH, REPORT_PATH
-from pr_info import FORCE_TESTS_LABEL, PRInfo
+from pr_info import PRInfo
 from stopwatch import Stopwatch
 from tee_popen import TeePopen
 from report import JobReport, TestResults
@@ -168,7 +165,6 @@ def main():
     state, description, test_results, additional_logs = process_results(
         result_path, server_log_path
     )
-    state = override_status(state, check_name)
 
     JobReport(
         description=description,
@@ -180,10 +176,7 @@ def main():
     ).dump()
 
     if state != "success":
-        if FORCE_TESTS_LABEL in pr_info.labels:
-            print(f"'{FORCE_TESTS_LABEL}' enabled, will report success")
-        else:
-            sys.exit(1)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

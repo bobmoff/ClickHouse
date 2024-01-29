@@ -93,7 +93,7 @@ def upload_results(
         raw_log_url = GITHUB_JOB_URL()
 
     statuscolors = (
-        ReportColorTheme.bugfixcheck if "bugfix validate check" in check_name else None
+        ReportColorTheme.bugfixcheck if "bugfix" in check_name.lower() else None
     )
 
     if test_results or not ready_report_url:

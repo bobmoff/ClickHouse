@@ -253,7 +253,7 @@ class ClickhouseIntegrationTestsRunner:
         self.shuffle_groups = self.params["shuffle_test_groups"]
         self.flaky_check = "flaky check" in self.params["context_name"]
         self.bugfix_validate_check = (
-            "bugfix validate check" in self.params["context_name"]
+            "bugfix" in self.params["context_name"].lower()
         )
         # if use_tmpfs is not set we assume it to be true, otherwise check
         self.use_tmpfs = "use_tmpfs" not in self.params or self.params["use_tmpfs"]
