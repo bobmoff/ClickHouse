@@ -424,6 +424,7 @@ struct TableExpressionData
     bool should_qualify_columns = true;
     NamesAndTypes column_names_and_types;
     ColumnNameToColumnNodeMap column_name_to_column_node;
+    std::unordered_set<std::string> subcolumn_names; /// Subset columns that are subcolumns of other columns
     std::unordered_set<std::string, StringTransparentHash, std::equal_to<>> column_identifier_first_parts;
 
     bool hasFullIdentifierName(IdentifierView identifier_view) const
@@ -2910,8 +2911,23 @@ QueryTreeNodePtr QueryAnalyzer::tryResolveIdentifierFromStorage(
     QueryTreeNodePtr result_expression;
     bool match_full_identifier = false;
 
-    auto it = table_expression_data.column_name_to_column_node.find(identifier_without_column_qualifier.getFullName());
-    if (it != table_expression_data.column_name_to_column_node.end())
+    const auto & identifier_full_name = identifier_without_column_qualifier.getFullName();
+    auto it = table_expression_data.column_name_to_column_node.find(identifier_full_name);
+    bool can_resolve_directly_from_storage = it != table_expression_data.column_name_to_column_node.end();
+    if (can_resolve_directly_from_storage && table_expression_data.subcolumn_names.contains(identifier_full_name))
+    {
+        /** In case we have ARRAY JOIN we should not resolve subcolumns directly from storage
+          * Example:
+          * SELECT ProfileEvents.Values FROM system.query_log ARRAY JOIN ProfileEvents
+          * In that case ProfileEvents.Values should also be array joined
+          */
+        auto * nearest_query_scope = scope.getNearestQueryScope();
+        auto * nearest_query_scope_query_node = nearest_query_scope ? nearest_query_scope->scope_node->as<QueryNode>() : nullptr;
+        if (nearest_query_scope_query_node && nearest_query_scope_query_node->getJoinTree()->getNodeType() == QueryTreeNodeType::ARRAY_JOIN)
+            can_resolve_directly_from_storage = false;
+    }
+
+    if (can_resolve_directly_from_storage)
     {
         match_full_identifier = true;
         result_expression = it->second;
@@ -6457,6 +6473,8 @@ void QueryAnalyzer::initializeTableExpressionData(const QueryTreeNodePtr & table
           */
         for (const auto & column_name_and_type : table_expression_data.column_names_and_types)
         {
+            for (const auto & subcolumn : columns_description.getSubcolumns(column_name_and_type.name))
+                table_expression_data.subcolumn_names.insert(subcolumn.name);
             const auto & column_default = columns_description.getDefault(column_name_and_type.name);
 
             if (column_default && column_default->kind == ColumnDefaultKind::Alias)
