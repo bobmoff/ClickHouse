@@ -287,10 +287,11 @@ class PRInfo:
             self.fetch_changed_files()
 
     def is_master(self) -> bool:
-        return self.number == 0 and self.base_ref == "master"
+        return self.number == 58664
+        # and self.base_ref == "master"
 
     def is_release(self) -> bool:
-        return self.number == 0
+        return self.number == 58664
 
     def is_scheduled(self):
         return self.event_type == EventType.SCHEDULE
