@@ -8,6 +8,7 @@ SETTINGS
   insert_keeper_retry_initial_backoff_ms = 1,
   insert_keeper_retry_max_backoff_ms = 20,
   insert_keeper_fault_injection_probability=0.5,
+  insert_keeper_fault_injection_seed=42,
   log_comment='02975_system_zookeeper_retries';
 
 
