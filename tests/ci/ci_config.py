@@ -807,7 +807,7 @@ CI_CONFIG = CiConfig(
                         "tests/ci/docker_server.py",
                         "./docker/server",
                     ]
-                )
+                ),
             ),
         ),
         JobNames.DOCKER_KEEPER: TestConfig(
