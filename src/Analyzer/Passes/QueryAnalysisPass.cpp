@@ -2916,10 +2916,10 @@ QueryTreeNodePtr QueryAnalyzer::tryResolveIdentifierFromStorage(
     bool can_resolve_directly_from_storage = it != table_expression_data.column_name_to_column_node.end();
     if (can_resolve_directly_from_storage && table_expression_data.subcolumn_names.contains(identifier_full_name))
     {
-        /** In case we have ARRAY JOIN we should not resolve subcolumns directly from storage
-          * Example:
+        /** In the case where we have an ARRAY JOIN, we should not resolve subcolumns directly from storage.
+          * For example, consider the following SQL query:
           * SELECT ProfileEvents.Values FROM system.query_log ARRAY JOIN ProfileEvents
-          * In that case ProfileEvents.Values should also be array joined
+          * In this case, ProfileEvents.Values should also be array joined, not directly resolved from storage.
           */
         auto * nearest_query_scope = scope.getNearestQueryScope();
         auto * nearest_query_scope_query_node = nearest_query_scope ? nearest_query_scope->scope_node->as<QueryNode>() : nullptr;
